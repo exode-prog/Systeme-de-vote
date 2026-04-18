@@ -1,0 +1,228 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { getElections, getCandidats } from '../../services/api';
+
+const StatCard = ({ icon, label, value, color }) => (
+  <div style={{
+    background: 'white', borderRadius: '16px', padding: '24px',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex',
+    alignItems: 'center', gap: '16px',
+    transition: 'all 0.2s ease', cursor: 'default',
+  }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-3px)';
+      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+    }}
+  >
+    <div style={{
+      width: '52px', height: '52px', borderRadius: '14px',
+      background: color + '18', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', fontSize: '24px',
+    }}>
+      {icon}
+    </div>
+    <div>
+      <div style={{ fontSize: '28px', fontWeight: 800, color: '#202124' }}>{value}</div>
+      <div style={{ fontSize: '13px', color: '#9aa0a6', marginTop: '2px' }}>{label}</div>
+    </div>
+  </div>
+);
+
+const ElectionCard = ({ election, onClick }) => {
+  const statutConfig = {
+    en_attente: { label: 'En attente',  bg: '#fff8e1', color: '#f57c00', dot: '#fbbc04' },
+    ouverte:    { label: 'En cours',    bg: '#e6f4ea', color: '#2e7d32', dot: '#34a853' },
+    fermee:     { label: 'Terminée',    bg: '#fce8e6', color: '#c62828', dot: '#ea4335' },
+    deliberee:  { label: 'Délibérée',   bg: '#e8f0fe', color: '#1a56db', dot: '#1a73e8' },
+  };
+  const s = statutConfig[election.statut] || statutConfig.en_attente;
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: 'white', borderRadius: '14px', padding: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer',
+        transition: 'all 0.2s ease', borderLeft: `4px solid ${s.dot}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: '#202124', marginBottom: '6px' }}>
+            {election.nom}
+          </div>
+          <div style={{ fontSize: '12px', color: '#9aa0a6' }}>
+            Année {election.annee_debut} — {election.annee_fin}
+          </div>
+        </div>
+        <span style={{
+          background: s.bg, color: s.color,
+          padding: '4px 12px', borderRadius: '20px',
+          fontSize: '11px', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: '5px',
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: s.dot, display: 'inline-block',
+            animation: election.statut === 'ouverte' ? 'pulse 1.5s infinite' : 'none',
+          }} />
+          {s.label}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+export default function Dashboard({ setCurrentPage }) {
+  const { utilisateur } = useAuth();
+  const [elections, setElections] = useState([]);
+  const [candidats, setCandidats] = useState([]);
+  const [loading, setLoading]     = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [e, c] = await Promise.all([getElections(), getCandidats()]);
+        setElections(e.data);
+        setCandidats(c.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const electionsOuvertes  = elections.filter(e => e.statut === 'ouverte');
+  const electionsEnAttente = elections.filter(e => e.statut === 'en_attente');
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
+      <div style={{
+        width: '40px', height: '40px',
+        border: '3px solid #e8f0fe', borderTopColor: '#1a73e8',
+        borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+      }} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#202124', marginBottom: '6px' }}>
+          Bonjour, {utilisateur?.prenom} 👋
+        </h1>
+        <p style={{ fontSize: '14px', color: '#9aa0a6' }}>
+          Bienvenue sur votre espace de vote électronique
+        </p>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '16px', marginBottom: '32px',
+      }}>
+        <StatCard icon="🗳️" label="Elections totales"   value={elections.length}          color="#1a73e8" />
+        <StatCard icon="🟢" label="Elections en cours"  value={electionsOuvertes.length}  color="#34a853" />
+        <StatCard icon="⏳" label="En attente"           value={electionsEnAttente.length} color="#fbbc04" />
+        <StatCard icon="👥" label="Candidats inscrits"  value={candidats.length}           color="#ea4335" />
+      </div>
+
+      {electionsOuvertes.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1a73e8, #0d47a1)',
+          borderRadius: '16px', padding: '24px', marginBottom: '32px',
+          color: 'white',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>🔴</span>
+            <span style={{ fontSize: '16px', fontWeight: 700 }}>
+              {electionsOuvertes.length} élection(s) en cours !
+            </span>
+          </div>
+          <p style={{ fontSize: '13px', opacity: 0.85, marginBottom: '16px' }}>
+            Ne manquez pas votre chance de voter. Votre voix compte !
+          </p>
+          <button
+            onClick={() => setCurrentPage('vote')}
+            style={{
+              background: 'white', color: '#1a73e8',
+              border: 'none', padding: '10px 20px',
+              borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            Voter maintenant →
+          </button>
+        </div>
+      )}
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#202124' }}>
+            Elections récentes
+          </h2>
+          <button
+            onClick={() => setCurrentPage('elections')}
+            style={{
+              background: '#e8f0fe', color: '#1a73e8', border: 'none',
+              padding: '8px 16px', borderRadius: '8px',
+              fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#1a73e8'; e.currentTarget.style.color = 'white'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#e8f0fe'; e.currentTarget.style.color = '#1a73e8'; }}
+          >
+            Voir tout
+          </button>
+        </div>
+
+        {elections.length === 0 ? (
+          <div style={{
+            background: 'white', borderRadius: '14px', padding: '48px',
+            textAlign: 'center', color: '#9aa0a6',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗳️</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
+              Aucune élection disponible
+            </div>
+            <div style={{ fontSize: '13px' }}>Les élections apparaîtront ici</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {elections.slice(0, 4).map((e) => (
+              <ElectionCard
+                key={e.id_election}
+                election={e}
+                onClick={() => setCurrentPage('elections')}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
+    </div>
+  );
+}

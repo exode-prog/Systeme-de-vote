@@ -1,0 +1,53 @@
+import { useState } from 'react';
+import Header from '../../components/Header';
+import Footer from '../../components/Footer';
+import Dashboard from './Dashboard';
+import GererElections from './GererElections';
+import GererCandidats from './GererCandidats';
+import GererUtilisateurs from './GererUtilisateurs';
+import Inscriptions from './Inscriptions';
+import Deliberation from './Deliberation';
+
+const menuItems = [
+  { id: 'dashboard',    label: 'Tableau de bord',  icon: '📊' },
+  { id: 'elections',    label: 'Elections',         icon: '🗳️' },
+  { id: 'candidats',    label: 'Candidats',         icon: '👥' },
+  { id: 'utilisateurs', label: 'Utilisateurs',      icon: '👤' },
+  { id: 'inscriptions', label: 'Inscriptions',      icon: '📝' },
+  { id: 'deliberation', label: 'Délibération',      icon: '🏆' },
+];
+
+export default function AdminLayout() {
+  const [currentPage, setCurrentPage] = useState('dashboard');
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':    return <Dashboard setCurrentPage={setCurrentPage} />;
+      case 'elections':    return <GererElections />;
+      case 'candidats':    return <GererCandidats />;
+      case 'utilisateurs': return <GererUtilisateurs />;
+      case 'inscriptions': return <Inscriptions />;
+      case 'deliberation': return <Deliberation />;
+      default:             return <Dashboard setCurrentPage={setCurrentPage} />;
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      background: '#f5f7fa', fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    }}>
+      <Header
+        menuItems={menuItems}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+      />
+      <main style={{ flex: 1, paddingTop: '80px', paddingBottom: '32px' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px' }}>
+          {renderPage()}
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+}

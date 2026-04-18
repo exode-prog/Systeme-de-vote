@@ -1,0 +1,37 @@
+const express = require('express');
+const router  = express.Router();
+const pool    = require('../config/db');
+const { verifierToken, verifierAdmin } = require('../middlewares/auth');
+
+router.get('/', verifierToken, verifierAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT i.id_inscription, u.nom, u.prenom, u.email,
+              c.nom AS classe, a.annee_debut, a.annee_fin
+       FROM inscription i
+       JOIN utilisateur u       ON i.id_utilisateur = u.id_utilisateur
+       JOIN classe c            ON i.id_classe = c.id_classe
+       JOIN annee_academique a  ON i.id_anneeacademique = a.id_anneeacademique
+       ORDER BY i.id_inscription DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message });
+  }
+});
+
+router.post('/', verifierToken, verifierAdmin, async (req, res) => {
+  const { id_utilisateur, id_classe, id_anneeAcademique } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO inscription (id_utilisateur, id_classe, id_anneeacademique)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [id_utilisateur, id_classe, id_anneeAcademique]
+    );
+    res.status(201).json({ message: 'Inscription créée', inscription: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', erreur: err.message });
+  }
+});
+
+module.exports = router;

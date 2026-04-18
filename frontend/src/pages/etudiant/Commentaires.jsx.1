@@ -1,0 +1,339 @@
+import { useState, useEffect } from 'react';
+import { getElections, getCommentaires, ajouterCommentaire, supprimerCommentaire, getCandidats } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+
+export default function Commentaires() {
+  const { utilisateur } = useAuth();
+  const [elections, setElections]         = useState([]);
+  const [electionChoisie, setElectionChoisie] = useState('');
+  const [commentaires, setCommentaires]   = useState([]);
+  const [candidats, setCandidats]         = useState([]);
+  const [contenu, setContenu]             = useState('');
+  const [idCandidat, setIdCandidat]       = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [submitting, setSubmitting]       = useState(false);
+  const [message, setMessage]             = useState(null);
+
+  useEffect(() => {
+    fetchElections();
+  }, []);
+
+  useEffect(() => {
+    if (electionChoisie) {
+      fetchCommentaires(electionChoisie);
+      fetchCandidats();
+    }
+  }, [electionChoisie]);
+
+  const fetchElections = async () => {
+    try {
+      const res = await getElections();
+      setElections(res.data);
+      if (res.data.length > 0) setElectionChoisie(res.data[0].id_election);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCommentaires = async (id) => {
+    try {
+      const res = await getCommentaires(id);
+      setCommentaires(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchCandidats = async () => {
+    try {
+      const res = await getCandidats();
+      setCandidats(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAjouter = async (e) => {
+    e.preventDefault();
+    if (!contenu.trim() || !electionChoisie) return;
+    setSubmitting(true);
+    try {
+      await ajouterCommentaire({
+        contenu,
+        id_election: electionChoisie,
+        id_candidat: idCandidat || null,
+      });
+      setContenu('');
+      setIdCandidat('');
+      setMessage({ type: 'success', text: '✅ Commentaire publié !' });
+      fetchCommentaires(electionChoisie);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Erreur lors de la publication' });
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const handleSupprimer = async (id) => {
+    if (!window.confirm('Supprimer ce commentaire ?')) return;
+    try {
+      await supprimerCommentaire(id);
+      setMessage({ type: 'success', text: '✅ Commentaire supprimé' });
+      fetchCommentaires(electionChoisie);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Erreur lors de la suppression' });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
+      <div style={{
+        width: '40px', height: '40px',
+        border: '3px solid #e8f0fe', borderTopColor: '#1a73e8',
+        borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#202124', marginBottom: '6px' }}>
+          💬 Commentaires
+        </h1>
+        <p style={{ fontSize: '14px', color: '#9aa0a6' }}>
+          Réagissez et partagez votre avis sur les élections
+        </p>
+      </div>
+
+      {message && (
+        <div style={{
+          background: message.type === 'success' ? '#e6f4ea' : '#fce8e6',
+          borderLeft: `4px solid ${message.type === 'success' ? '#34a853' : '#ea4335'}`,
+          color: message.type === 'success' ? '#2e7d32' : '#c62828',
+          padding: '12px 16px', borderRadius: '8px',
+          fontSize: '14px', marginBottom: '20px',
+        }}>
+          {message.text}
+        </div>
+      )}
+
+      <div style={{ marginBottom: '20px' }}>
+        <select
+          value={electionChoisie}
+          onChange={(e) => setElectionChoisie(e.target.value)}
+          style={{
+            padding: '11px 16px', border: '1.5px solid #e0e0e0',
+            borderRadius: '10px', fontSize: '14px', outline: 'none',
+            background: 'white', cursor: 'pointer', fontWeight: 500,
+            color: '#202124', minWidth: '280px',
+          }}
+          onFocus={(e) => { e.target.style.borderColor = '#1a73e8'; }}
+          onBlur={(e) => { e.target.style.borderColor = '#e0e0e0'; }}
+        >
+          <option value="">Choisir une élection</option>
+          {elections.map(el => (
+            <option key={el.id_election} value={el.id_election}>
+              {el.nom}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {electionChoisie && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '24px', alignItems: 'start' }}>
+          <div>
+            <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#202124', marginBottom: '16px' }}>
+              {commentaires.length} commentaire(s)
+            </h2>
+
+            {commentaires.length === 0 ? (
+              <div style={{
+                background: 'white', borderRadius: '14px', padding: '48px',
+                textAlign: 'center', color: '#9aa0a6',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>💬</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '6px' }}>
+                  Aucun commentaire
+                </div>
+                <div style={{ fontSize: '13px' }}>Soyez le premier à réagir !</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {commentaires.map((c) => (
+                  <div key={c.id_commentaire} style={{
+                    background: 'white', borderRadius: '14px', padding: '18px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                    transition: 'all 0.2s ease',
+                    borderLeft: c.id_candidat ? '3px solid #1a73e8' : '3px solid #e0e0e0',
+                  }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                        <div style={{
+                          width: '36px', height: '36px', background: '#e8f0fe',
+                          borderRadius: '50%', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', fontSize: '14px',
+                          fontWeight: 700, color: '#1a73e8', flexShrink: 0,
+                        }}>
+                          {c.nom?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#202124' }}>
+                            {c.prenom} {c.nom}
+                          </div>
+                          {c.candidat_nom && (
+                            <div style={{
+                              fontSize: '11px', color: '#1a73e8', fontWeight: 600,
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                              → À propos de {c.candidat_prenom} {c.candidat_nom}
+                            </div>
+                          )}
+                          {!c.candidat_nom && (
+                            <div style={{ fontSize: '11px', color: '#9aa0a6' }}>
+                              Commentaire général
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {c.nom === utilisateur?.nom && (
+                        <button
+                          onClick={() => handleSupprimer(c.id_commentaire)}
+                          style={{
+                            background: 'none', border: 'none',
+                            cursor: 'pointer', color: '#ea4335',
+                            fontSize: '16px', padding: '4px 8px',
+                            borderRadius: '6px', transition: 'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#fce8e6'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                    <p style={{
+                      fontSize: '13px', color: '#5f6368',
+                      lineHeight: 1.7, margin: 0,
+                    }}>
+                      {c.contenu}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ position: 'sticky', top: '80px' }}>
+            <div style={{
+              background: 'white', borderRadius: '14px', padding: '22px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#202124', marginBottom: '16px' }}>
+                ✏️ Ajouter un commentaire
+              </h3>
+              <form onSubmit={handleAjouter}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{
+                    display: 'block', fontSize: '12px',
+                    fontWeight: 600, color: '#9aa0a6', marginBottom: '6px',
+                  }}>
+                    CIBLER UN CANDIDAT (optionnel)
+                  </label>
+                  <select
+                    value={idCandidat}
+                    onChange={(e) => setIdCandidat(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 12px',
+                      border: '1.5px solid #e0e0e0', borderRadius: '8px',
+                      fontSize: '13px', outline: 'none',
+                      color: '#5f6368', boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => { e.target.style.borderColor = '#1a73e8'; }}
+                    onBlur={(e) => { e.target.style.borderColor = '#e0e0e0'; }}
+                  >
+                    <option value="">Commentaire général</option>
+                    {candidats.map(c => (
+                      <option key={c.id_candidat} value={c.id_candidat}>
+                        {c.prenom} {c.nom}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{
+                    display: 'block', fontSize: '12px',
+                    fontWeight: 600, color: '#9aa0a6', marginBottom: '6px',
+                  }}>
+                    VOTRE COMMENTAIRE *
+                  </label>
+                  <textarea
+                    value={contenu}
+                    onChange={(e) => setContenu(e.target.value)}
+                    placeholder="Partagez votre avis..."
+                    rows={4}
+                    required
+                    style={{
+                      width: '100%', padding: '10px 12px',
+                      border: '1.5px solid #e0e0e0', borderRadius: '8px',
+                      fontSize: '13px', resize: 'vertical',
+                      outline: 'none', lineHeight: 1.6,
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#1a73e8';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(26,115,232,0.12)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#e0e0e0';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || !contenu.trim()}
+                  style={{
+                    width: '100%', padding: '12px',
+                    background: submitting || !contenu.trim() ? '#9aa0a6' : '#1a73e8',
+                    color: 'white', border: 'none', borderRadius: '8px',
+                    fontSize: '14px', fontWeight: 600,
+                    cursor: submitting || !contenu.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting && contenu.trim()) e.currentTarget.style.background = '#0d47a1';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting && contenu.trim()) e.currentTarget.style.background = '#1a73e8';
+                  }}
+                >
+                  {submitting ? 'Publication...' : '📤 Publier'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

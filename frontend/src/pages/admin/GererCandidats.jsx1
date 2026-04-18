@@ -1,0 +1,237 @@
+import { useState, useEffect } from 'react';
+import { getCandidatsAdmin, validerCandidat, rejeterCandidat, getElections } from '../../services/api';
+
+export default function GererCandidats() {
+  const [candidats, setCandidats]         = useState([]);
+  const [elections, setElections]         = useState([]);
+  const [electionChoisie, setElectionChoisie] = useState('');
+  const [loading, setLoading]             = useState(true);
+  const [message, setMessage]             = useState(null);
+  const [filtre, setFiltre]               = useState('tous');
+
+  useEffect(() => { fetchElections(); }, []);
+
+  useEffect(() => {
+    fetchCandidats(electionChoisie);
+  }, [electionChoisie]);
+
+  const fetchElections = async () => {
+    try {
+      const res = await getElections();
+      setElections(res.data);
+      const ouverte = res.data.find(e => e.statut === 'ouverte');
+      if (ouverte) setElectionChoisie(ouverte.id_election);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchCandidats = async (id_election) => {
+    setLoading(true);
+    try {
+      const res = await getCandidatsAdmin(id_election);
+      setCandidats(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleValider = async (id) => {
+    if (!window.confirm('Valider cette candidature ?')) return;
+    try {
+      await validerCandidat(id);
+      setMessage({ type: 'success', text: 'Candidature validee !' });
+      fetchCandidats(electionChoisie);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erreur' });
+    }
+    setTimeout(() => setMessage(null), 4000);
+  };
+
+  const handleRejeter = async (id) => {
+    if (!window.confirm('Rejeter cette candidature ?')) return;
+    try {
+      await rejeterCandidat(id);
+      setMessage({ type: 'success', text: 'Candidature rejetee' });
+      fetchCandidats(electionChoisie);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erreur' });
+    }
+    setTimeout(() => setMessage(null), 4000);
+  };
+
+  const statutConfig = {
+    en_attente: { label: 'En attente', bg: '#fff8e1', color: '#f57c00', dot: '#fbbc04' },
+    valide:     { label: 'Valide',     bg: '#e6f4ea', color: '#2e7d32', dot: '#34a853' },
+    rejete:     { label: 'Rejete',     bg: '#fce8e6', color: '#c62828', dot: '#ea4335' },
+  };
+
+  const candidatsFiltres = filtre === 'tous'
+    ? candidats
+    : candidats.filter(c => c.statut === filtre);
+
+  return (
+    <div>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#202124', marginBottom: '6px' }}>
+          Gestion des candidatures
+        </h1>
+        <p style={{ fontSize: '14px', color: '#9aa0a6' }}>
+          Validez ou rejetez les candidatures par election
+        </p>
+      </div>
+
+      {message && (
+        <div style={{
+          background: message.type === 'success' ? '#e6f4ea' : '#fce8e6',
+          borderLeft: '4px solid ' + (message.type === 'success' ? '#34a853' : '#ea4335'),
+          color: message.type === 'success' ? '#2e7d32' : '#c62828',
+          padding: '12px 16px', borderRadius: '8px', fontSize: '14px', marginBottom: '20px',
+        }}>
+          {message.text}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select
+          value={electionChoisie}
+          onChange={(e) => { setElectionChoisie(e.target.value); setFiltre('tous'); }}
+          style={{
+            padding: '11px 14px', border: '1.5px solid #e0e0e0',
+            borderRadius: '10px', fontSize: '14px', outline: 'none',
+            background: 'white', minWidth: '280px', fontWeight: 500,
+          }}
+          onFocus={(e) => { e.target.style.borderColor = '#1a73e8'; }}
+          onBlur={(e) => { e.target.style.borderColor = '#e0e0e0'; }}
+        >
+          <option value="">Toutes les elections</option>
+          {elections.map(el => {
+            const config = {
+              en_attente: 'En attente',
+              ouverte:    'Ouverte',
+              fermee:     'Fermee',
+              deliberee:  'Deliberee',
+            };
+            return (
+              <option key={el.id_election} value={el.id_election}>
+                {el.nom} — {config[el.statut]}
+              </option>
+            );
+          })}
+        </select>
+
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'tous',       label: 'Tous (' + candidats.length + ')' },
+            { id: 'en_attente', label: 'En attente (' + candidats.filter(c => c.statut === 'en_attente').length + ')' },
+            { id: 'valide',     label: 'Valides (' + candidats.filter(c => c.statut === 'valide').length + ')' },
+            { id: 'rejete',     label: 'Rejetes (' + candidats.filter(c => c.statut === 'rejete').length + ')' },
+          ].map(f => (
+            <button key={f.id} onClick={() => setFiltre(f.id)}
+              style={{
+                padding: '10px 14px', borderRadius: '8px', border: 'none',
+                fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: filtre === f.id ? '#1a73e8' : '#f8f9fa',
+                color: filtre === f.id ? 'white' : '#5f6368',
+              }}
+              onMouseEnter={(e) => { if (filtre !== f.id) e.currentTarget.style.background = '#e8f0fe'; }}
+              onMouseLeave={(e) => { if (filtre !== f.id) e.currentTarget.style.background = '#f8f9fa'; }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
+          <div style={{ width: '40px', height: '40px', border: '3px solid #e8f0fe', borderTopColor: '#1a73e8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      ) : candidatsFiltres.length === 0 ? (
+        <div style={{ background: 'white', borderRadius: '16px', padding: '60px', textAlign: 'center', color: '#9aa0a6', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>👥</div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#202124', marginBottom: '6px' }}>
+            Aucune candidature
+          </div>
+          <div style={{ fontSize: '13px' }}>
+            {electionChoisie ? 'Aucune candidature pour cette election' : 'Selectionnez une election'}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {candidatsFiltres.map((candidat) => {
+            const s = statutConfig[candidat.statut] || statutConfig.en_attente;
+            return (
+              <div key={candidat.id_candidat} style={{
+                background: 'white', borderRadius: '14px', padding: '22px',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                borderLeft: '4px solid ' + s.dot,
+                transition: 'all 0.2s ease',
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '48px', height: '48px', background: '#e8f0fe', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#1a73e8' }}>
+                      {candidat.nom?.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#202124', marginBottom: '2px' }}>
+                        {candidat.prenom} {candidat.nom}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#9aa0a6', marginBottom: '2px' }}>{candidat.email}</div>
+                      <div style={{ fontSize: '12px', color: '#1a73e8', fontWeight: 600 }}>
+                        {candidat.classe}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      background: s.bg, color: s.color,
+                      padding: '4px 12px', borderRadius: '20px',
+                      fontSize: '11px', fontWeight: 600,
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                    }}>
+                      <span style={{ width: '6px', height: '6px', background: s.dot, borderRadius: '50%', display: 'inline-block' }} />
+                      {s.label}
+                    </span>
+
+                    {candidat.statut === 'en_attente' && (
+                      <>
+                        <button onClick={() => handleValider(candidat.id_candidat)}
+                          style={{ background: '#e6f4ea', color: '#2e7d32', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#34a853'; e.currentTarget.style.color = 'white'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = '#e6f4ea'; e.currentTarget.style.color = '#2e7d32'; }}
+                        >
+                          Valider
+                        </button>
+                        <button onClick={() => handleRejeter(candidat.id_candidat)}
+                          style={{ background: '#fce8e6', color: '#c62828', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = '#ea4335'; e.currentTarget.style.color = 'white'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = '#fce8e6'; e.currentTarget.style.color = '#c62828'; }}
+                        >
+                          Rejeter
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8f9fa', borderRadius: '10px', padding: '12px 14px', marginTop: '14px', fontSize: '13px', color: '#5f6368', lineHeight: 1.6, borderLeft: '3px solid #1a73e8' }}>
+                  {candidat.programme}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
